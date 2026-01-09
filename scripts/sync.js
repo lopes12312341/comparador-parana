@@ -737,7 +737,19 @@ async function scrapeMega({ categorySlug, maxPages = 10, delayMs = 300 }) {
 
   for (let page = 1; page <= maxPages; page++) {
     const url = page === 1 ? categoryUrl : `${categoryUrl}page/${page}/`;
-    const html = await fetchHtml(url);
+    let html;
+try {
+  html = await fetchHtml(url);
+} catch (e) {
+  const msg = String(e?.message || e);
+  if (msg.includes("HTTP 404")) {
+    console.log(`ℹ️ Mega: fin de paginación (404) en ${url}`);
+  } else {
+    console.warn(`⚠️ Mega: error pidiendo ${url}: ${msg}`);
+  }
+  break; // cortamos paginación para no romper el sync
+}
+
     const $ = cheerio.load(html);
 
     // ✅ MEGA usa /propiedades/ (plural). Igual soportamos /propiedad/ por las dudas.
@@ -1938,44 +1950,45 @@ async function upsertAll(source, items) {
   
 
 
-    await prisma.property.upsert({
-      where: { sourceId_externalId: { sourceId: src.id, externalId: it.externalId } },
-      update: {
-        url: it.url,
-        title: it.title,
-        type: it.type,
-        price: (typeof it.price === "number" ? it.price : 0),
+    try {
+  await prisma.property.upsert({
+    where: { sourceId_externalId: { sourceId: src.id, externalId: it.externalId } },
+    update: {
+      url: it.url,
+      title: it.title,
+      type: it.type,
+      price: (typeof it.price === "number" ? it.price : 0),
+      currency: it.currency === "USD" || it.currency === "ARS" ? it.currency : "ARS",
+      neighborhood: it.neighborhood ?? null,
+      operation: it.operation ?? null,
+      isActive: true,
+      lastSeenAt: now,
+      raw: it.raw ?? null,
+      imageUrl: normalizedImageUrl,
+    },
+    create: {
+      source: { connect: { id: src.id } },
+      externalId: it.externalId,
+      url: it.url,
+      title: it.title,
+      type: it.type,
+      price: it.price ?? 0,
+      currency: it.currency === "USD" || it.currency === "ARS" ? it.currency : "ARS",
+      neighborhood: it.neighborhood ?? null,
+      operation: it.operation ?? null,
+      isActive: true,
+      lastSeenAt: now,
+      raw: it.raw ?? null,
+      imageUrl: normalizedImageUrl,
+    },
+  });
 
+  ok++;
+} catch (e) {
+  console.warn(`⚠️ Upsert falló (${source.id} / ${it.externalId}):`, e?.message || e);
+  // seguimos con el siguiente item
+}
 
-        currency: it.currency === "USD" || it.currency === "ARS" ? it.currency : "ARS",
-        neighborhood: it.neighborhood ?? null,
-        operation: it.operation ?? null,
-        isActive: true,
-        lastSeenAt: now,
-        raw: it.raw ?? null,
-        imageUrl: normalizedImageUrl,
-
-      },
-      create: {
-        source: { connect: { id: src.id } },
-        externalId: it.externalId,
-        url: it.url,
-        title: it.title,
-        type: it.type,
-        price: it.price ?? 0,
-
-        currency: it.currency === "USD" || it.currency === "ARS" ? it.currency : "ARS",
-        neighborhood: it.neighborhood ?? null,
-        operation: it.operation ?? null,
-        isActive: true,
-        lastSeenAt: now,
-        raw: it.raw ?? null,
-        imageUrl: normalizedImageUrl,
-
-      },
-    });
-
-    ok++;
   }
 
   console.log(`✅ ${source.name}: upsert ${ok} props`);
