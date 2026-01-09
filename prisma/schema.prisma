@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")   // pooled
+  directUrl = env("DIRECT_URL")     // unpooled
+}
+
+
+model Source {
+  id        String   @id @default(cuid())
+  name      String
+  baseUrl   String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  properties Property[]
+}
+
+model Property {
+  id           String   @id @default(cuid())
+  sourceId     String
+  source       Source   @relation(fields: [sourceId], references: [id])
+  
+
+  imageUrl     String?
+  externalId   String
+  url          String
+  title        String
+  type         String
+  price        Int
+  currency     String   @default("USD")
+  address      String?
+  neighborhood String?
+
+  operation    String?  // "venta" | "alquiler"
+  isActive     Boolean  @default(true)
+  lastSeenAt   DateTime?
+  raw          Json?
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([sourceId, externalId])
+  @@index([price, type])
+  @@index([isActive, lastSeenAt])
+}

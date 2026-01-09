@@ -1,0 +1,5 @@
+npx create-next-app@latest comparador-parana --ts --eslint
+cd comparador-parana
+npm i @prisma/client
+npm i -D prisma
+npx prisma init --datasource-provider sqlite
